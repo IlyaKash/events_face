@@ -1,6 +1,7 @@
 from django.shortcuts import render
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from .models import Event
 from .serializers import EventSerializer
 
@@ -11,7 +12,8 @@ class EventPagination(PageNumberPagination):
 
 
 @api_view(['GET'])
-def events(request):
+@permission_classes([IsAuthenticated])
+def events_view(request):
     queryset=Event.objects.filter(status='open').select_related('venue')
 
     name_filter=request.GET.get('name')
