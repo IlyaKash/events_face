@@ -5,6 +5,8 @@ import uuid
 class Venue(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name=models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table="venues"
@@ -26,6 +28,8 @@ class Event(models.Model):
     venue=models.ForeignKey(
         Venue, on_delete=models.SET_NULL, null=True, blank=True, related_name="events"
     )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table="events"

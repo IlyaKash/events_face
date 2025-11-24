@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'src.authentication',
     'src.events',
+    'src.sync',
 ]
 
 REST_FRAMEWORK = {
