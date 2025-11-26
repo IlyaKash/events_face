@@ -117,15 +117,23 @@ def send_confirmation_email(email, full_name, event_name, confirmation_code):
             "confirmation_code": confirmation_code
         }
     }
-    try:
-        response = requests.post(
-            notification_url,
-            headers=headers,
-            json=payload,
-            timeout=10
-        )
-        print(f"Notification API response: {response.status_code} - {response.text}")
-        return response.status_code == 200# сервис возвращает 201
-    except requests.RequestException as e:
-        print(f"Notification API error: {e}")
-        return False
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(
+                notification_url,
+                headers=headers,
+                json=payload,
+                timeout=10
+            )
+            print(f"Notification API response: {response.status_code} - {response.text}")
+            if response.status_code == 200:
+                return True
+        except requests.RequestException as e:
+            print(f"Notification API error: {e}")
+            return False
+        
+        if attempt < max_retries - 1:
+            import time
+            time.sleep(2)
+    return False
