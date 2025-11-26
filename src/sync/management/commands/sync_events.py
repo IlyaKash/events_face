@@ -89,10 +89,8 @@ class Command(BaseCommand):
             params["changed_at"] = last_sync_date.strftime("%Y-%m-%d")
 
         headers = {
-            'accept': 'application/json',
-            'User-Agent': 'Events-Face-Sync/1.0',
-            'authorization': 'Basic dXNlcjp1c2Vy',
-            'X-CSRFTOKEN': 'Qy5MPkhFpPVFvwZt4NlwB6jail7aakjSqnicG7GmOw5DXw70q4nzJrZoLam7H6fu'
+            'authorization': 'Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc19zdGFmZiI6ZmFsc2UsInN1YiI6IjIzIiwiZXhwIjoxNzY0MTY3MjkyLCJpYXQiOjE3NjQwODA4OTJ9.uF37v-PMYsxiifkflYgh4j2OQ8V-3-jTa0G03aWPPG2ILwjIhCxHJVGmb3f-uD5HOohCCYv5UrQtb0CNYvzPRAOX7dZJ8T7RzAUxDonag6xJAwGYRb8ChikcC7RVUWg-6FPGKjyiiQBRF-TdwfcCEBzPBDXRVjeUyIUVsqqFzx2Q9Wr59_aOVmvHlFF2sJmq-woBqacIDMyLah_guCeyL4ZOwMJ0s7ZfI3czLfviU5q3C-2ffcD2i7jeXRMIFxgj81RmEGxWM2eZfNpc39cYqliramz84BjSDgMDIPZwYjc_EPzWbwYXTISX6dOgpHZqJgUzT_uu9WK4lRBbiqgaEA',
+            'Content-Type': 'application/json',
         }
 
         self.stdout.write(f"Fetching events from {base_url} with params: {params}")
@@ -131,26 +129,51 @@ class Command(BaseCommand):
     
     def create_or_update_event(self, event_data):
         """Создает или обновляет мероприятие"""
-
-        venue=None
-        if event_data.get("venue"):
-            venue, _=Venue.objects.get_or_create(
-                id=event_data['venue']['id'],
-                defaults={'name': event_data['venue']['name']}
+        venue = None
+        if event_data.get("place"):
+            venue, _ = Venue.objects.get_or_create(
+                id=event_data['place']['id'],
+                defaults={'name': event_data['place']['name']}
             )
         
-        status=EventStatus.OPEN if event_data.get('status') == "open" else EventStatus.CLOSED
-
-        event, created=Event.objects.update_or_create(
-            id=event_data['id'],
-            defaults={
-                "name" : event_data["name"],
-                "event_date": event_data["event_date"],
-                "status": status,
-                "venue": venue,
-            }
-        )
-        return event, created
+        status_map = {
+            'new': EventStatus.OPEN,
+            'open': EventStatus.OPEN, 
+            'closed': EventStatus.CLOSED
+        }
+        status = status_map.get(event_data.get('status'), EventStatus.OPEN)
+        
+        event_time = event_data.get('event_time')
+        if not event_time:
+            self.stdout.write(self.style.WARNING(f"Event {event_data.get('id')} has no event_time, using current time"))
+            event_time = timezone.now()
+        
+        if isinstance(event_time, str):
+            from django.utils.dateparse import parse_datetime
+            parsed_date = parse_datetime(event_time)
+            if parsed_date:
+                event_time = parsed_date
+            else:
+                event_time = timezone.now()
+        
+        try:
+            event, created = Event.objects.update_or_create(
+                id=event_data['id'],
+                defaults={
+                    "name": event_data["name"],
+                    "event_date": event_time,
+                    "status": status,
+                    "venue": venue,
+                }
+            )
+            
+            action = "Added" if created else "Updated"
+            self.stdout.write(f"✅ {action} event: {event_data.get('name')}")
+            return event, created
+            
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f"Failed to create/update event {event_data.get('id')}: {e}"))
+            raise
     
     def save_sync_settings(self):
         setting, _ =SyncSettings.objects.get_or_create(key="last_successful_sync")

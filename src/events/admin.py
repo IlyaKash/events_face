@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import Venue, Event
-
+from .models import EventRegistration
 # Register your models here.
 
 @admin.register(Venue)
@@ -11,9 +11,16 @@ class VenueAdmin(admin.ModelAdmin):
 
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
-    list_display=["name", "event_date", "status", "venue"]
+    list_display=["name", "event_date", "status", "venue", 'id']
     search_fields=["name"]
     list_filter=["status", "event_date", "venue"]
     date_hierarchy="event_date"
     list_per_page = 20
-    
+
+
+@admin.register(EventRegistration)
+class EventRegistrationAdmin(admin.ModelAdmin):
+    list_display = ['full_name', 'email', 'event', 'is_confirmed', 'created_at']
+    list_filter = ['is_confirmed', 'event', 'created_at']
+    search_fields = ['full_name', 'email', 'event__name']
+    readonly_fields = ['confirmation_code', 'created_at', 'updated_at']

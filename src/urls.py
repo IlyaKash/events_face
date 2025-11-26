@@ -22,6 +22,7 @@ from src.authentication import views as auth_views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/events/', events_views.events_view),
+    path('api/events/<uuid:event_id>/register/', events_views.event_register),
     path('api/auth/register/', auth_views.RegisterView.as_view()),
     path('api/auth/login/', auth_views.LoginView.as_view()),
     path('api/auth/token/refresh/', auth_views.TokenRefreshView.as_view()),
