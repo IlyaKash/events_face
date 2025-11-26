@@ -1,14 +1,17 @@
+from django.utils import timezone
 import uuid
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from .models import EmailOutbox, Event, EventRegistration
+
+from src.authentication import serializers
+from .models import EmailOutbox, EmailOutboxStatus, Event, EventRegistration, EventStatus
 from .serializers import EventSerializer, EventRegistrSerializer, EventRegistrationCreateSerializer
 from rest_framework import status
 from rest_framework.response import Response
 import requests
 import json
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
 class EventPagination(PageNumberPagination):
     page_size=10
@@ -37,111 +40,61 @@ def events_view(request):
 
     return paginator.get_paginated_response(serializer.data)
 
+
+NOTIFICATIONS_URL = "https://notifications.k3scluster.tech/api/notifications"
+OWNER_ID = "8ad9e699-dc2f-439c-a335-da9a6438ecc0"
+JWT_TOKEN = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc19zdGFmZiI6ZmFsc2UsInN1YiI6IjIzIiwiZXhwIjoxNzY0MjU1ODMwLCJpYXQiOjE3NjQxNjk0MzB9.led4PTKxs-MEykb0H4qpLPSzAKw1Z4yvJRDwBaKRPzRBQ7QAvVqju7BYOz8ZZmsBQKq07Kk1Fg97NQibD9BP0PMyXqPE_wZR-nHB1Q3UHob4MInmn-GetVu1x8i_qGCbEuMcly6rSAc6WCzH4RroiRwSxS8oiD1Z12vvWAveiP705U8PuUlEGfDai8rM7_og8KXq6YEaw-Ch9TaLgC4SpcJQAUHJAfZ_ix1Cuxm-XbUgNwBqyAoiU6fczqe3W8tNUOP1aUD6xw-8f0oGWERa0ZQU-YSqkiCEcHmvvSzK-SchrmZtRTxArlPdDVqX3G6XEl-AtSPSUWYzkrz7yRO97w"
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def event_register(request, event_id):
+
     try:
-        event=Event.objects.get(id=event_id, status='open')
+        event = Event.objects.get(id=event_id)
     except Event.DoesNotExist:
-        return Response(
-            {'error' : 'Event not found or not open for registration'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    email=request.data.get('email')
-    if EventRegistration.objects.filter(event=event, email=email).exists():
-        return Response(
-            {'error': 'You are already registered for this event'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response({"detail": "event not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    serializer=EventRegistrationCreateSerializer(data=request.data)
-    if serializer.is_valid():
-        try:
-            with transaction.atomic():
-                registration=EventRegistration.objects.create(
-                    event=event,
-                    full_name=serializer.validated_data['full_name'],
-                    email=serializer.validated_data['email']
-                )
-                confirmation_code=registration.generate_confirmation_code()
+    if event.status != EventStatus.OPEN:
+        return Response({"detail": "event is not open"}, status=status.HTTP_400_BAD_REQUEST)
 
-                EmailOutbox.objects.create(
-                    registration=registration
-                )
-            try:
-                email_sent = send_confirmation_email(
-                    email=registration.email,
-                    full_name=registration.full_name,
-                    event_name=event.name,
-                    confirmation_code=confirmation_code
-                )
+    serializer = EventRegistrationCreateSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-                if email_sent:
-                    EmailOutbox.objects.filter(registration=registration).update(status='sent')
-            except Exception as e:
-                print(f"Failed to send email: {e}")
+    full_name = serializer.validated_data['full_name']
+    email = serializer.validated_data['email']
 
-            return Response(
-                {
-                    "message": "Registration successful.",
-                    "registration_id": str(registration.id),
-                    "confirmation_code": confirmation_code
-                },
-                status=status.HTTP_200_OK
+    try:
+        with transaction.atomic():
+            event = Event.objects.select_for_update().get(id=event_id)
+            if EventRegistration.objects.filter(event=event, email__iexact=email).exists():
+                return Response({"detail": "this email already registered"}, status=status.HTTP_400_BAD_REQUEST)
+
+            registration = EventRegistration.objects.create(
+                event=event,
+                full_name=full_name,
+                email=email
             )
-        except Exception as e:
-            return Response(
-                {"error": f"Registration failed: {str(e)}"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-    
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            code = registration.generate_confirmation_code()
+    except Exception as e:
+        return Response({"detail": str(e)}, status=500)
 
-def send_confirmation_email(email, full_name, event_name, confirmation_code):
-    notification_url="https://notifications.k3scluster.tech/api/notifications"
-
-    headers={
-        'Content-Type' : 'application/json',
-        'Authorization' : 'Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc19zdGFmZiI6ZmFsc2UsInN1YiI6IjIzIiwiZXhwIjoxNzY0MjQ1NTUzLCJpYXQiOjE3NjQxNTkxNTN9.LbXsjTfdc0bW341V4YJ7sJdXV1gWEtc_fHx_V0ZtyAAoAnesD2nIrTHyMA5Ydl3kyInhwVH6zUDx-p9qTYbgFSsch0sxUrHgOK7jo9h8RM77yNN38OsIURVAgjl0PrvIh4B3oH5CABOeh1jgF04SOtwHgmf5EoXMWZo4WDWo8bJa_wXXcIBmF6S1HparVyFpI7hcUQY6I7aGLpkJ6tklZr7VVDr3c67tFJqEOsn2gHh7kNH0xdKfqTZeOwLYoNjJmWJAGhQBu1yc4eyMSN_rZQQMYoruOOLrKw2zKM4VhRozh6-S4a98HFO1zyqPSbM7iBv_zOc0pY9t8sHDnnXiDw'
+    payload = {
+        "id": str(uuid.uuid4()),
+        "owner_id": OWNER_ID,
+        "email": email,
+        "message": f"Здравствуйте {full_name}, ваш код подтверждения: {code}"
     }
 
-    payload={
-        'id': str(uuid.uuid4()),
-        'owner_id': '8ad9e699-dc2f-439c-a335-da9a6438ecc0',
-        'email': email,
-        'message' : f"""
-        Здравствуйте, {full_name}!
-        
-        Вы успешно зарегистрировались на мероприятие: {event_name}
-        
-        Ваш код подтверждения: {confirmation_code}
-        
-        С уважением,
-        Команда Events-Face
-        """,
-        "metadata": {
-            "event_name": event_name,
-            "confirmation_code": confirmation_code
-        }
-    }
-    max_retries = 30
-    for attempt in range(max_retries):
-        try:
-            response = requests.post(
-                notification_url,
-                headers=headers,
-                json=payload,
-                timeout=10
-            )
-            print(f"Notification API response: {response.status_code} - {response.text}")
-            if response.status_code == 200:
-                return True
-        except requests.RequestException as e:
-            print(f"Notification API error: {e}")
-            return False
-        
-        if attempt < max_retries - 1:
-            import time
-            time.sleep(1)
-    return False
+    outbox = EmailOutbox.objects.create(
+        to_email=email,
+        subject=f"Подтверждение регистрации: {event.name}",
+        body=payload["message"],
+        payload=payload,
+        status="pending"
+    )
+
+    return Response({
+        "registration_id": str(registration.id),
+        "email_status": "queued"
+    }, status=201)

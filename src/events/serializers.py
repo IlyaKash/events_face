@@ -38,8 +38,20 @@ class EventRegistrSerializer(serializers.ModelSerializer):
             
             return data
         
-    
+
 class EventRegistrationCreateSerializer(serializers.ModelSerializer):
+
     class Meta:
         model = EventRegistration
-        fields = ['full_name', 'email']
+        fields = ("full_name", "email")
+        extra_kwargs = {
+            "full_name": {"max_length": 128},
+        }
+
+    def validate_full_name(self, value):
+        if len(value) > 128:
+            raise serializers.ValidationError("full_name must be at most 128 characters.")
+        return value
+
+    def validate_email(self, value):
+        return value

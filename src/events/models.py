@@ -62,17 +62,22 @@ class EventRegistration(models.Model):
         return self.confirmation_code
 
 
+class EmailOutboxStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    SENT = "sent", "Sent"
+    FAILED = "failed", "Failed"
+
 class EmailOutbox(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    registration=models.OneToOneField(EventRegistration, on_delete=models.CASCADE)
-    status=models.CharField(
-        max_length=20,
-        choices=[('pending', 'Pending'),('sent', 'Sent'), ('failed', 'Failed')],
-        default='pending'
-    )
-    attempts=models.IntegerField(default=0),
-    created_at=models.DateTimeField(auto_now_add=True),
-    processed_at=models.DateTimeField(null=True, blank=True)
+    to_email = models.EmailField()
+    subject = models.CharField(max_length=255)
+    body = models.TextField()
+    payload = models.JSONField(blank=True, null=True)
+    status = models.CharField(max_length=16, choices=EmailOutboxStatus.choices, default=EmailOutboxStatus.PENDING)
+    attempts = models.IntegerField(default=0)
+    last_attempt_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table='email_outbox'
+        db_table = "email_outbox"
