@@ -60,3 +60,19 @@ class EventRegistration(models.Model):
         self.confirmation_code=str(random.randint(100000, 999999))
         self.save()
         return self.confirmation_code
+
+
+class EmailOutbox(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    registration=models.OneToOneField(EventRegistration, on_delete=models.CASCADE)
+    status=models.CharField(
+        max_length=20,
+        choices=[('pending', 'Pending'),('sent', 'Sent'), ('failed', 'Failed')],
+        default='pending'
+    )
+    attempts=models.IntegerField(default=0),
+    created_at=models.DateTimeField(auto_now_add=True),
+    processed_at=models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table='email_outbox'

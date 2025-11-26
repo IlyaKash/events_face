@@ -2,12 +2,13 @@ import uuid
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from .models import Event, EventRegistration
+from .models import EmailOutbox, Event, EventRegistration
 from .serializers import EventSerializer, EventRegistrSerializer, EventRegistrationCreateSerializer
 from rest_framework import status
 from rest_framework.response import Response
 import requests
 import json
+from django.db import transaction
 
 class EventPagination(PageNumberPagination):
     page_size=10
@@ -47,41 +48,48 @@ def event_register(request, event_id):
             status=status.HTTP_400_BAD_REQUEST
         )
     
+    email=request.data.get('email')
+    if EventRegistration.objects.filter(event=event, email=email).exists():
+        return Response(
+            {'error': 'You are already registered for this event'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
     serializer=EventRegistrationCreateSerializer(data=request.data)
     if serializer.is_valid():
         try:
-            registration=EventRegistration.objects.create(
-                event=event,
-                full_name=serializer.validated_data['full_name'],
-                email=serializer.validated_data['email']
-            )
-            confirmation_code=registration.generate_confirmation_code()
-
-            email_sent=send_confirmation_email(
-                registration.email,
-                registration.full_name,
-                event.name,
-                confirmation_code
-            )
-
-            if email_sent:
-                return Response(
-                    {
-                        "message": "Registration successful. Confirmation code sent to your email.",
-                        "registration_id": str(registration.id),
-                        "confirmation_code": confirmation_code
-                    },
-                    status=status.HTTP_201_CREATED
+            with transaction.atomic():
+                registration=EventRegistration.objects.create(
+                    event=event,
+                    full_name=serializer.validated_data['full_name'],
+                    email=serializer.validated_data['email']
                 )
-            else:
-                return Response(
-                    {
-                        "message": "Registration created but failed to send confirmation email",
-                        "registration_id": str(registration.id),
-                        "confirmation_code": confirmation_code
-                    },
-                    status=status.HTTP_201_CREATED
+                confirmation_code=registration.generate_confirmation_code()
+
+                EmailOutbox.objects.create(
+                    registration=registration
                 )
+            try:
+                email_sent = send_confirmation_email(
+                    email=registration.email,
+                    full_name=registration.full_name,
+                    event_name=event.name,
+                    confirmation_code=confirmation_code
+                )
+
+                if email_sent:
+                    EmailOutbox.objects.filter(registration=registration).update(status='sent')
+            except Exception as e:
+                print(f"Failed to send email: {e}")
+
+            return Response(
+                {
+                    "message": "Registration successful.",
+                    "registration_id": str(registration.id),
+                    "confirmation_code": confirmation_code
+                },
+                status=status.HTTP_200_OK
+            )
         except Exception as e:
             return Response(
                 {"error": f"Registration failed: {str(e)}"},
@@ -95,7 +103,7 @@ def send_confirmation_email(email, full_name, event_name, confirmation_code):
 
     headers={
         'Content-Type' : 'application/json',
-        'Authorization' : 'Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc19zdGFmZiI6ZmFsc2UsInN1YiI6IjIzIiwiZXhwIjoxNzY0MjM4NDgzLCJpYXQiOjE3NjQxNTIwODN9.NN6__xsoizzXUIIlcUlq5rxNvF62mf2XGydgqsJFiAZ8-ltNPMpgSB2-wJPXdTAFhzRwn9JrY8PcH6BXbuHjb2cQkzRUUD9p3T_A1kv7IafPuvqQCuUyyPXUpTJ6DY7bq24IHFgJu9Ib0Diz0KbFnVA_k-aj3l8atClTA2_yCvPmt7Vx5hWuW00Km-JVHptSlAvrFNv4Wvvim_4n6D1GRqjx84CVskzNnDzp5I7oaE69soe_ojIP1aKQlFcxay3b-nozR4QjWQv_NBTCC-zcZxDST4IRp4apnxBHiNJqZLmylzZswzo_O0eOyKDV5sKCZ3VlT8V5FinLsdpaymE4Bw'
+        'Authorization' : 'Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc19zdGFmZiI6ZmFsc2UsInN1YiI6IjIzIiwiZXhwIjoxNzY0MjQ1NTUzLCJpYXQiOjE3NjQxNTkxNTN9.LbXsjTfdc0bW341V4YJ7sJdXV1gWEtc_fHx_V0ZtyAAoAnesD2nIrTHyMA5Ydl3kyInhwVH6zUDx-p9qTYbgFSsch0sxUrHgOK7jo9h8RM77yNN38OsIURVAgjl0PrvIh4B3oH5CABOeh1jgF04SOtwHgmf5EoXMWZo4WDWo8bJa_wXXcIBmF6S1HparVyFpI7hcUQY6I7aGLpkJ6tklZr7VVDr3c67tFJqEOsn2gHh7kNH0xdKfqTZeOwLYoNjJmWJAGhQBu1yc4eyMSN_rZQQMYoruOOLrKw2zKM4VhRozh6-S4a98HFO1zyqPSbM7iBv_zOc0pY9t8sHDnnXiDw'
     }
 
     payload={
@@ -117,7 +125,7 @@ def send_confirmation_email(email, full_name, event_name, confirmation_code):
             "confirmation_code": confirmation_code
         }
     }
-    max_retries = 3
+    max_retries = 30
     for attempt in range(max_retries):
         try:
             response = requests.post(
@@ -135,5 +143,5 @@ def send_confirmation_email(email, full_name, event_name, confirmation_code):
         
         if attempt < max_retries - 1:
             import time
-            time.sleep(2)
+            time.sleep(1)
     return False
