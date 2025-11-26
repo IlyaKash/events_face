@@ -1,0 +1,48 @@
+curl.exe -X POST http://127.0.0.1:8000/api/auth/register/ `
+>>   -H "Content-Type: application/json" `
+>>   -d "{\`"username\`": \`"demo\`", \`"password\`": \`"demopass123\`", \`"password_confirmation\`": \`"demopass123\`"}"
+{"message":"User created successfully","access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzY0MTU2MjM3LCJpYXQiOjE3NjQxNTI2MzcsImp0aSI6IjU2M2E0Y2RkY2M5MDQ2MDM5ZDhiODU1MWZlNDU4OGRkIiwidXNlcl9pZCI6IjMifQ.TflwPpeiB0jSa-kt-kUdiqugTrK6gwqybQ8vA-04I8M","refresh_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc2NDc1NzQzNywiaWF0IjoxNzY0MTUyNjM3LCJqdGkiOiIxYTg4YjE2NDRmZTg0YjI4ODdjOGZiZTk4Y2IxMWE1YyIsInVzZXJfaWQiOiIzIn0.XnGVi4GqGOsoq1W29UUIoxQRsFrwuU6NEGH5jlZKXo0"}
+(events-face) PS F:\MyProjects\want_a_job\events_face> $accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzY0MTU2MjM3LCJpYXQiOjE3NjQxNTI2MzcsImp0aSI6IjU2M2E0Y2RkY2M5MDQ2MDM5ZDhiODU1MWZlNDU4OGRkIiwidXNlcl9pZCI6IjMifQ.TflwPpeiB0jSa-kt-kUdiqugTrK6gwqybQ8vA-04I8M"
+(events-face) PS F:\MyProjects\events_face> $events = Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/events/" `
+>>   -Method GET `
+>>   -Headers @{"Authorization" = "Bearer $accessToken"}
+(events-face) PS F:\MyProjects\events_face> $events.results | Format-Table id, name, event_date, status
+
+id                                   name
+--                                   ----
+325a7282-33fd-4bee-8071-5ab716d1d866 ÐÑÐ°Ð·Ð´Ð½Ð¸Ðº ÐÑÑÐºÐ¸Ð½Ð°
+3cedd45d-1d95-4f88-ab2b-af3e6d1a6f93 ÐÐ¾ÑÐºÑÐ¾Ð¿ Ð¿Ð¾ ÐºÑÐ¸Ð¿ÑÐ¾Ð²Ð°Ð»ÑÑÐ°Ð¼ Ð´Ð»Ñ ÑÑÐ°ÑÑÐ°Ð¿ÐµÑ...
+3f5cb9ac-a81e-4122-9dc8-3745ec045c38 ÐÑÑÑ Ð¿Ð¾ Ð´Ð¸Ð·Ð°Ð¹Ð½Ñ Ð´Ð»Ñ ÑÑÐ¸ÑÑÐ¾Ð²
+ac4ae829-e469-4b65-909d-2e868da9afc7 ÐÐµÐ±Ð¸Ð½Ð°Ñ Ð¿Ð¾ ÑÐ¿ÑÐ°Ð²Ð»ÐµÐ½Ð¸Ñ Ð¿ÑÐ¾ÐµÐºÑÐ°Ð¼Ð¸ Ð´Ð»Ñ ÑÐ¸Ð...
+22b05c5c-53d7-4971-8e29-0a56d89b7c64 ÐÐµÐ±Ð¸Ð½Ð°Ñ Ð¿Ð¾ ÐºÐ¾Ð½ÑÐµÐ½Ñ-Ð¼Ð°ÑÐºÐµÑÐ¸Ð½Ð³Ñ Ð´Ð»Ñ HR-ÑÐ¿Ðµ...
+53f3a0bd-9bde-469b-ae18-7d07edc9a435 ÐÐ¾ÑÐºÑÐ¾Ð¿ Ð¿Ð¾ ÐºÐ¸Ð±ÐµÑÐ±ÐµÐ·Ð¾Ð¿Ð°ÑÐ½Ð¾ÑÑÐ¸ Ð´Ð»Ñ Ð¿ÑÐµÐ´Ð¿...
+274154dd-a2da-41ab-9fa7-d14b3563e71b Ð¤Ð¾ÑÑÐ¼ Ð¿Ð¾ Ð´Ð¸Ð·Ð°Ð¹Ð½Ñ Ð´Ð»Ñ ÑÑÑÐ´ÐµÐ½ÑÐ¾Ð²
+142c583c-ebd3-4b8d-9422-fb9802d26b3c Ð¢ÑÐµÐ½Ð¸Ð½Ð³ Ð¿Ð¾ ÑÐ¿ÑÐ°Ð²Ð»ÐµÐ½Ð¸Ñ Ð¿ÑÐ¾ÐµÐºÑÐ°Ð¼Ð¸ Ð´Ð»Ñ Ð¿ÑÐ...
+70c9209a-8048-470f-9eca-1eb052338ab4 ÐÑÑÑ Ð¿Ð¾ ÑÐ¿ÑÐ°Ð²Ð»ÐµÐ½Ð¸Ñ Ð»ÑÐ´ÑÐ¼Ð¸ Ð´Ð»Ñ Ð°Ð½Ð°Ð»Ð¸ÑÐ¸ÐºÐ¾Ð²
+74cd61a0-b83b-4cd8-8022-eaef052c85c7 Ð¡ÐµÐ¼Ð¸Ð½Ð°Ñ Ð¿Ð¾ HR Ð´Ð»Ñ ÐºÐ¾Ð¼Ð°Ð½Ð´
+
+
+(events-face) PS F:\MyProjects\events_face> $eventId = "325a7282-33fd-4bee-8071-5ab716d1d866"
+(events-face) PS F:\MyProjects\events_face> $registerBody = @{
+>>     full_name = "Илья Тестовый"
+>>     email = "iliakashkarov@gmail.com"
+>> } | ConvertTo-Json
+(events-face) PS F:\MyProjects\events_face> $result = Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/events/$eventId/register/" `
+>>   -Method POST `
+>>   -Headers @{"Authorization" = "Bearer $accessToken"} `
+>>   -ContentType "application/json" `
+>>   -Body $registerBody
+(events-face) PS F:\MyProjects\want_a_job\events_face> Write-Host "егистрация"  
+>> Write-Host "Сообщение: $($result.message)"
+>> Write-Host "Код подтверждения: $($result.confirmation_code)"
+>> Write-Host "ID регистрации: $($result.registration_id)"
+егистрация
+Сообщение: Registration created but failed to send confirmation email
+Код подтверждения: 220493
+ID регистрации: d9d40872-d6df-49b0-9100-5487ae8034ac
+(events-face) PS F:\MyProjects\events_face> $result
+
+message                                                    registration_id                      confirmation_cod
+                                                                                                e
+-------                                                    ---------------                      ----------------
+Registration created but failed to send confirmation email d9d40872-d6df-49b0-9100-5487ae8034ac 220493
