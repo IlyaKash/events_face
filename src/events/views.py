@@ -76,23 +76,25 @@ def event_register(request, event_id):
                 email=email
             )
             code = registration.generate_confirmation_code()
+
+            payload = {
+                "id": str(uuid.uuid4()),
+                "owner_id": OWNER_ID,
+                "email": email,
+                "message": f"Здравствуйте {full_name}, ваш код подтверждения: {code}"
+            }
+
+            outbox = EmailOutbox.objects.create(
+                to_email=email,
+                subject=f"Подтверждение регистрации: {event.name}",
+                body=payload["message"],
+                payload=payload,
+                status="pending"
+            )
     except Exception as e:
         return Response({"detail": str(e)}, status=500)
 
-    payload = {
-        "id": str(uuid.uuid4()),
-        "owner_id": OWNER_ID,
-        "email": email,
-        "message": f"Здравствуйте {full_name}, ваш код подтверждения: {code}"
-    }
-
-    outbox = EmailOutbox.objects.create(
-        to_email=email,
-        subject=f"Подтверждение регистрации: {event.name}",
-        body=payload["message"],
-        payload=payload,
-        status="pending"
-    )
+    
 
     return Response({
         "registration_id": str(registration.id),
